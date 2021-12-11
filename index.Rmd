@@ -46,93 +46,181 @@ class_diag <- function(score, truth, positive, cutoff=.5){
 
 # Mining, Classification, Prediction
 
-## Name and EID here
+## Nitya Kodali nk9723
 
 ### Introduction 
 
-Paragraph or two introducing your datasets and variables, why they are interesting to you, etc. See instructions for more information
+The dataset that I used is the FirstYearGPA dataset in the Stat2Data package. The title of this dataset is First Year GPA for College Students. I found this dataset using Vincent Arel-Bundock's website for R datasets. I found this dataset interesting because it's definitely something that is relevant in my life as a college student. It would definitely be worth exploring specific variables that may have contributed to relationships in the data, or may be correlated with relationships found in the data.
+  
+There are 219 rows and 10 columns in this dataset. The 10 variables in this dataset are GPA (the first-year GPA), HSGPA (the high-school GPA), SATV (the verbal/crtiical reading SAT score), SATM (the math SAT score), Male (sex), HU (credit hours in humanities in high school), SS (credit hours in social sciences in high school), FirstGen (first generation college student), White (white college student), and CollegeBound (attended a high school where more than half the students intend to go to college). The following code shows how many observations there are per group for the binary variables.
 
 ```{R}
-library(tidyverse)
-# read your datasets in here, e.g., with read_csv()
-
-# if your dataset needs tidying, do so here
-
-# any other code here
+library(readr)
+library(dplyr)
+FirstYearGPA <- read_csv("FirstYearGPA.csv")
+data <- FirstYearGPA %>% select(-X1)
+data %>% group_by(CollegeBound) %>% summarize(n())
+data %>% group_by(Male) %>% summarize(n())
+data %>% group_by(FirstGen) %>% summarize(n())
+data %>% group_by(White) %>% summarize(n())
 ```
 
 ### Cluster Analysis
 
 ```{R}
+library(dplyr)
 library(cluster)
-# clustering code here
-```
+library(ggplot2)
 
-Discussion of clustering here
-    
+datapam<-data %>% select(GPA, HU, SS) %>% scale %>% as.data.frame
+
+sil_width<-vector()
+for(i in 2:10){  
+  pam_fit <- pam(datapam, k = i)  
+  sil_width[i] <- pam_fit$silinfo$avg.width  
+}
+ggplot()+geom_line(aes(x=1:10,y=sil_width))+scale_x_continuous(name="k",breaks=1:10)
+
+pam1 <-datapam %>% pam(k=3)
+
+final <- datapam %>% mutate(cluster=as.factor(pam1$clustering))
+ggplot(final, aes(x=HU,y=SS, color=cluster))+geom_point()
+
+library(plotly)
+final%>%plot_ly(x= ~HU,  y = ~SS, z = ~GPA, color= ~cluster, type = "scatter3d", mode = "markers")
+
+library(GGally)
+ggpairs(final, aes(color=cluster))
+
+pam1$silinfo$avg.width
+plot(pam1,which=2)
+```
+In order to perform a PAM on my data, I first selected three numeric variables and scaled them. Then I chose the number of clusters to be 3 based on the largest average silhouette width. Then I ran the PAM with k=3. Then I visualized the clusters on a 2D scatterplot. The clusters seemed to be split on medium-high SS (cluster 1), medium-high HU (cluster 2), and low SS/low HU (cluster 3). I also visualized the clusters on a 3D plot. On the 3D plot, GPA seemed to be highest for cluster 1 and lowest for cluster 3, with cluster 2 in the middle. Another way that I visualized the clusters was with the function ggpairs. This showed a significant correlation between SS and GPA. Then, I tested the goodness-of-fit by looking at the average silhouette width. This gave me a value of 0.31, which indicates that the structure is weak and that it could be artificial.
     
 ### Dimensionality Reduction with PCA
 
 ```{R}
-# PCA code here
+datapca_nums <- data %>% select(GPA, SATV, SATM) %>% scale
+
+datapca<-princomp(datapca_nums,cor=T)
+names(datapca)
+summary(datapca, loadings=T)
+
+eigval <-  datapca$sdev^2
+varprop=round(eigval/sum(eigval), 2)
+
+ggplot() + geom_bar(aes(y=varprop, x=1:3), stat="identity") + xlab("") + geom_path(aes(y=varprop, x=1:3)) + 
+  geom_text(aes(x=1:3, y=varprop, label=round(varprop, 2)), vjust=1, col="white", size=5) + 
+  scale_y_continuous(breaks=seq(0, .6, .2), labels = scales::percent) + 
+  scale_x_continuous(breaks=1:10)
+
+round(cumsum(eigval)/sum(eigval), 2)
+eigval
+
+datapcadf<-data.frame(PC1=datapca$scores[, 1],PC2=datapca$scores[, 2])
+ggplot(datapcadf, aes(PC1, PC2)) + geom_point()
+library(factoextra)
+fviz_pca_biplot(datapca)
 ```
 
-Discussions of PCA here. 
+In order to perform a PCA on my data, I chose three numeric variables (GPA, SATV, SATM) from my data, and I scaled the values. Then I performed a PCA using the function princomp. After that I chose to keep 2 PCs by using a scree plot. In the process, I checked the amount of variance in my data that can be explained by the 2 PCs. PC1 explains 57 percent of the variance in my data (for these three variables). Both PC1 and PC2 together explain 85 percent of the variance in my data (for these three variables. Then I visualized the PC scores via ggplot. I also visualized them via fviz_pca() to make a biplot. 
+
+A high score on PC1 means that the student had a high GPA, SATV, and SATM. A low score on PC1 means that the student had a low GPA, SATV, and SATM. A high score on PC2 means that the student had a very high GPA, but a low SATV and SATM. A low score on PC2 means that the student had a low GPA, but a high SATV and SATM.
 
 ###  Linear Classifier
 
 ```{R}
-# linear classifier code here
+class_dat <- data %>% select(GPA, HSGPA, SATV, SATM, HU, SS, CollegeBound)
+glimpse(class_dat)
+glm(CollegeBound ~ . , data=class_dat, family="binomial")
+fit1 <- glm(CollegeBound ~ . , data=class_dat, family="binomial")
+probs1 <- predict(fit1, type="response")
+class_diag(probs1, class_dat$CollegeBound, positive=1) 
+table(truth = class_dat$CollegeBound, predictions = probs1>.5)
 ```
 
 ```{R}
-# cross-validation of linear classifier here
+library(caret)
+set.seed(1234)
+cv1 <- trainControl(method="cv", number = 10, classProbs = T, savePredictions = T)
+fit2 <- train(CollegeBound ~ ., data=class_dat, trControl=cv1, method="glm")
+class_diag(fit2$pred$pred, fit2$pred$obs, positive=1)
 ```
 
-Discussion here
+I used logistic regression to predict the binary variable CollegeBound from all the numeric variables in my dataset. Then I ran the class_diag function to get in sample performance. This showed that the sensitivity is 1 and the specificity was 0. With an AUC of 0.7717, the model is doing fair (based only on the AUC). Finally I generated a confusion matrix. Then I performed a k-fold CV on this model. Then I obtained the AUC using class_diag. With a sensitivity of 1, a specifity of 0, and an AUC of .498, the model is predicting new observations very badly. I do see signs of overfitting as my model is doing much much worse in cross-validation.
 
 ### Non-Parametric Classifier
 
 ```{R}
-library(caret)
-# non-parametric classifier code here
+fit3 <- knn3(CollegeBound ~ . , data=class_dat)
+probs2 <- predict(fit3, newdata=class_dat)[,2]
+class_diag(probs2, class_dat$CollegeBound, positive=1) 
+table(truth = class_dat$CollegeBound, predictions = probs2>.5)
 ```
 
 ```{R}
-# cross-validation of np classifier here
+set.seed(1234)
+cv2 <- trainControl(method="cv", number = 10, classProbs = T, savePredictions = T)
+fit4 <- train(CollegeBound ~ ., data=class_dat, trControl=cv2, method="knn")
+class_diag(fit4$pred$pred, fit4$pred$obs, positive=1)
 ```
 
-Discussion
+I used k-nearest-neighbors on my dataset. Then, I ran the class_diag function to obtain in-sample performance. It had a specificity of .0588 and a sensitivity of 1. With an AUC of 0.8969, the model is performing good. Then, I generated a confusion matrix. After that I performed a k-fold CV. I used the function class_diag to obtain in-sample performance. This had a sensitivity of 1 and a specificity of 0. This gave me an AUC of 0.3742, which is very bad. Since there is such a huge drop in AUC when cross-validated, it is a big sign that there is overfitting. When it comes to cross-validation performance, my linear model did better than my nonparametric model.
 
 
 ### Regression/Numeric Prediction
 
 ```{R}
-# regression model code here
+fit5<-lm(GPA ~ SATV + SATM, data=data)
+yhat1<-predict(fit5)
+mean((data$GPA-yhat1)^2)
 ```
 
 ```{R}
-# cross-validation of regression model here
+set.seed(1234)
+k=5
+data1<- data %>% sample_frac()
+folds<-cut(seq(1:nrow(data)),breaks=k,labels=F)
+diags<-NULL
+for(i in 1:k){
+train<-data1[folds!=i,]
+test<-data1[folds==i,]
+fit6<-lm(GPA~SATV+SATM,data=train)
+yhat<-predict(fit6,newdata=test)
+diags<-mean((test$GPA-yhat)^2)
+}
+mean(diags) 
 ```
 
-Discussion
+First, I fit a linear regression model to my dataset, predicting GPA from SATV and SATM. The MSE for this datset is 0.195. Then I performed a k-fold CV on this model. The average MSE for the CV was 0.173. Since the MSE is lower in the CV, that does not indicate signs of overfitting.
 
 ### Python 
 
 ```{R}
 library(reticulate)
+
+gpa <- "The average GPA for students at four-year colleges in the US is around"
 ```
 
 ```{python}
-# python code here
+gpa="3.15"
+print(r.gpa,gpa)
+
+data=r.data
+len(data["GPA"] > 3.15)
+len(data["GPA"] < 3.15)
+data["GPA"].mean()
 ```
 
-Discussion
+```{R}
+cat(c(gpa,py$gpa))
+```
+
+Here, I used reticulate to include a python code chunk. In the python code chunk, I first used r.gpa and gpa (py) to make a sentence decribing the average GPA. Then I checked the number of students in my dataset with a GPA more than the average as well as the number of students with a GPA less than the average. After that, I took the mean GPA of the students in my dataset. Finally, I reprinted the sentence from earlier, however, this time I used the python gpa (py.gpa) in an r code chunk.
 
 ### Concluding Remarks
 
-Include concluding remarks here, if any
-
+Overall, this project was very fulfilling. To be honest, it felt like I didn't fully understand the various ways to analyze data, but after this project I definitely have a better grip on the methods we covered in class.
 
 
 
