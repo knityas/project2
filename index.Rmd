@@ -207,8 +207,7 @@ gpa="3.15"
 print(r.gpa,gpa)
 
 data=r.data
-len(data["GPA"] > 3.15)
-len(data["GPA"] < 3.15)
+len(data["GPA"])
 data["GPA"].mean()
 ```
 
@@ -216,7 +215,7 @@ data["GPA"].mean()
 cat(c(gpa,py$gpa))
 ```
 
-Here, I used reticulate to include a python code chunk. In the python code chunk, I first used r.gpa and gpa (py) to make a sentence decribing the average GPA. Then I checked the number of students in my dataset with a GPA more than the average as well as the number of students with a GPA less than the average. After that, I took the mean GPA of the students in my dataset. Finally, I reprinted the sentence from earlier, however, this time I used the python gpa (py.gpa) in an r code chunk.
+Here, I used reticulate to include a python code chunk. In the python code chunk, I first used r.gpa and gpa (py) to make a sentence decribing the average GPA. Then I checked the number of students in my dataset. After that, I took the mean GPA of the students in my dataset. Finally, I reprinted the sentence from earlier, however, this time I used the python gpa (py.gpa) in an r code chunk.
 
 ### Concluding Remarks
 
